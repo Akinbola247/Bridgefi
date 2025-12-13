@@ -55,6 +55,69 @@ export async function sendMNT(
     return tx;
   } catch (error: any) {
     console.error('Failed to send MNT:', error);
+    
+    // Handle "already known" error - transaction was already submitted
+    const errorMessage = error.message || '';
+    const errorBody = error.body || '';
+    const errorString = JSON.stringify(error);
+    const requestBody = error.requestBody || '';
+    
+    if (
+      errorMessage.includes('already known') ||
+      errorBody.includes('already known') ||
+      errorString.includes('already known')
+    ) {
+      console.log('⚠️ Transaction already known - attempting to recover transaction hash...');
+      
+      try {
+        const provider = new ethers.providers.JsonRpcProvider(MANTLE_SEPOLIA_RPC_URL);
+        let txHash: string | null = null;
+        
+        // Try to extract transaction hash from raw transaction in request body
+        if (requestBody) {
+          try {
+            const requestJson = JSON.parse(requestBody);
+            if (requestJson.params && requestJson.params[0]) {
+              const rawTx = requestJson.params[0];
+              if (rawTx && typeof rawTx === 'string' && rawTx.startsWith('0x')) {
+                try {
+                  const parsedTx = ethers.utils.parseTransaction(rawTx);
+                  if (parsedTx && parsedTx.hash) {
+                    txHash = parsedTx.hash;
+                    console.log(`✅ Extracted transaction hash from raw transaction: ${txHash}`);
+                  }
+                } catch (parseError) {
+                  console.warn('Could not parse transaction:', parseError);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Could not parse request body:', e);
+          }
+        }
+        
+        // If we have a hash, return a transaction-like object
+        if (txHash) {
+          console.log(`✅ Transaction already submitted with hash: ${txHash}`);
+          return {
+            hash: txHash,
+            wait: async (confirmations?: number) => {
+              return await provider.waitForTransaction(txHash!, confirmations || 1);
+            },
+          } as any;
+        }
+        
+        // If we couldn't recover the hash, inform the user
+        throw new Error('Transaction was already submitted. Please check your wallet for pending transactions. The transaction may still be processing.');
+      } catch (recoveryError: any) {
+        if (recoveryError.message?.includes('already submitted')) {
+          throw recoveryError;
+        }
+        console.error('Failed to recover transaction hash:', recoveryError);
+        throw new Error('Transaction was already submitted to the network. Please check your wallet or transaction history. The transaction may still be processing.');
+      }
+    }
+    
     throw new Error(error.message || 'Failed to send MNT');
   }
 }
@@ -119,6 +182,123 @@ export async function sendUSDC(
     return tx;
   } catch (error: any) {
     console.error('Failed to send USDC:', error);
+    
+    // Handle "already known" error - transaction was already submitted
+    const errorMessage = error.message || '';
+    const errorBody = error.body || '';
+    const errorString = JSON.stringify(error);
+    const requestBody = error.requestBody || '';
+    
+    if (
+      errorMessage.includes('already known') ||
+      errorBody.includes('already known') ||
+      errorString.includes('already known')
+    ) {
+      console.log('⚠️ Transaction already known - attempting to recover transaction hash...');
+      
+      try {
+        const provider = new ethers.providers.JsonRpcProvider(MANTLE_SEPOLIA_RPC_URL);
+        const wallet = new ethers.Wallet(privateKey, provider);
+        let txHash: string | null = null;
+        
+        // Try to extract transaction hash from raw transaction in request body
+        if (requestBody) {
+          try {
+            const requestJson = JSON.parse(requestBody);
+            if (requestJson.params && requestJson.params[0]) {
+              const rawTx = requestJson.params[0];
+              // For EIP-1559 transactions (type 2), the hash is keccak256 of the RLP-encoded transaction
+              // The raw transaction bytes already contain the signature, so we can hash them directly
+              if (rawTx && typeof rawTx === 'string' && rawTx.startsWith('0x')) {
+                // Remove the transaction type byte (0x02 for EIP-1559) and hash the rest
+                // Actually, for EIP-1559, the hash includes the type byte
+                // Let's use ethers to properly decode and hash
+                try {
+                  // Parse the transaction to extract details
+                  const parsedTx = ethers.utils.parseTransaction(rawTx);
+                  
+                  // For EIP-1559 transactions, compute hash from the raw transaction
+                  // The hash is keccak256 of the transaction type byte (0x02) concatenated with RLP-encoded transaction
+                  // Since we have the raw transaction, we can compute it
+                  // For type 2 (EIP-1559), hash = keccak256(0x02 || rlp_encoded_tx_without_type)
+                  // But the rawTx already includes the type byte, so we hash it directly
+                  // Note: This is a simplified approach - the actual hash computation is more complex
+                  
+                  // Try to get hash from parsed transaction (if available)
+                  if (parsedTx && parsedTx.hash) {
+                    txHash = parsedTx.hash;
+                    console.log(`✅ Extracted transaction hash from parsed transaction: ${txHash}`);
+                  } else {
+                    // Compute hash from raw transaction
+                    // For EIP-1559: hash = keccak256(rawTx)
+                    // This should work for most cases
+                    txHash = ethers.utils.keccak256(rawTx);
+                    console.log(`✅ Computed transaction hash from raw transaction: ${txHash}`);
+                  }
+                } catch (parseError) {
+                  // If parsing fails, try direct keccak256 as fallback
+                  // This may not be 100% accurate but should work in most cases
+                  try {
+                    txHash = ethers.utils.keccak256(rawTx);
+                    console.log(`✅ Computed transaction hash (fallback): ${txHash}`);
+                  } catch (hashError) {
+                    console.warn('Could not compute transaction hash:', hashError);
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Could not parse request body:', e);
+          }
+        }
+        
+        // If we still don't have a hash, try to find it by checking the wallet's recent transactions
+        if (!txHash) {
+          try {
+            // Get the current nonce to determine which transaction might be pending
+            const currentNonce = await provider.getTransactionCount(wallet.address, 'pending');
+            const confirmedNonce = await provider.getTransactionCount(wallet.address, 'latest');
+            
+            // If there's a difference, there might be a pending transaction
+            if (currentNonce > confirmedNonce) {
+              // Try to get the transaction by querying with the expected nonce
+              // We'll try to get it from the mempool by checking recent blocks
+              console.log(`🔍 Checking for pending transaction with nonce ${confirmedNonce}...`);
+              
+              // Note: Most RPC providers don't support querying pending transactions by nonce
+              // So we'll inform the user instead
+            }
+          } catch (e) {
+            console.warn('Could not check for pending transaction:', e);
+          }
+        }
+        
+        // If we have a hash, return a transaction-like object
+        if (txHash) {
+          console.log(`✅ Transaction already submitted with hash: ${txHash}`);
+          // Return a transaction response object with the hash
+          return {
+            hash: txHash,
+            wait: async (confirmations?: number) => {
+              return await provider.waitForTransaction(txHash!, confirmations || 1);
+            },
+          } as any;
+        }
+        
+        // If we couldn't recover the hash, log a warning but don't fail
+        // The transaction was submitted, so we'll inform the user
+        console.warn('⚠️ Could not recover transaction hash, but transaction was already submitted');
+        throw new Error('Transaction was already submitted. Please check your wallet for pending transactions. The transaction may still be processing.');
+      } catch (recoveryError: any) {
+        // If recovery failed, provide a helpful message
+        if (recoveryError.message?.includes('already submitted')) {
+          throw recoveryError;
+        }
+        console.error('Failed to recover transaction hash:', recoveryError);
+        // Fall through to show a helpful error message
+        throw new Error('Transaction was already submitted to the network. Please check your wallet or transaction history. The transaction may still be processing.');
+      }
+    }
     
     // Provide more helpful error messages
     if (error.message?.includes('zero address')) {

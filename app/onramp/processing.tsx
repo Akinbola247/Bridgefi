@@ -152,7 +152,7 @@ export default function OnrampProcessingPage() {
     switch (currentStage) {
       case 'payment':
         return (
-          <View>
+          <View style={styles.stageContainer}>
             <View style={styles.stageHeader}>
               <LoadingSpinner size="large" />
               <Text
@@ -177,7 +177,7 @@ export default function OnrampProcessingPage() {
 
       case 'verifying':
         return (
-          <View>
+          <View style={styles.stageContainer}>
             <View style={styles.stageHeader}>
               <LoadingSpinner size="large" />
               <Text
@@ -202,7 +202,7 @@ export default function OnrampProcessingPage() {
 
       case 'blockchain':
         return (
-          <View>
+          <View style={styles.stageContainer}>
             <View style={styles.stageHeader}>
               <LoadingSpinner size="large" />
               <Text
@@ -281,7 +281,7 @@ export default function OnrampProcessingPage() {
 
       case 'complete':
         return (
-          <View>
+          <View style={styles.stageContainer}>
             <View style={styles.stageHeader}>
               <Text style={[styles.successIcon, { color: BridgeFiColors.success }]}>✓</Text>
               <Text
@@ -355,7 +355,7 @@ export default function OnrampProcessingPage() {
 
       case 'failed':
         return (
-          <View>
+          <View style={styles.stageContainer}>
             <View style={styles.stageHeader}>
               <Text style={[styles.errorIcon, { color: BridgeFiColors.error }]}>✕</Text>
               <Text
@@ -402,53 +402,17 @@ export default function OnrampProcessingPage() {
         <BackButton style={styles.backButton} />
       )}
       
-      {/* Transaction Summary */}
-      <Card style={styles.summaryCard}>
-        <Text
-          style={[
-            styles.summaryTitle,
-            { color: isDark ? BridgeFiColors.text.inverse : BridgeFiColors.text.primary },
-          ]}
-        >
-          Transaction Summary
-        </Text>
-        <View style={styles.summaryRow}>
+      <View style={styles.processingContent}>
+        {/* Transaction Summary */}
+        <Card style={styles.summaryCard}>
           <Text
             style={[
-              styles.summaryLabel,
-              { color: isDark ? BridgeFiColors.text.secondary : BridgeFiColors.text.secondary },
-            ]}
-          >
-            Amount Paid
-          </Text>
-          <Text
-            style={[
-              styles.summaryValue,
+              styles.summaryTitle,
               { color: isDark ? BridgeFiColors.text.inverse : BridgeFiColors.text.primary },
             ]}
           >
-            ₦{parseFloat(ngnAmount || '0').toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            Transaction Summary
           </Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text
-            style={[
-              styles.summaryLabel,
-              { color: isDark ? BridgeFiColors.text.secondary : BridgeFiColors.text.secondary },
-            ]}
-          >
-            You will Receive
-          </Text>
-          <Text
-            style={[
-              styles.summaryValue,
-              { color: BridgeFiColors.success },
-            ]}
-          >
-            {usdcAmount || '0.000000'} USDC
-          </Text>
-        </View>
-        {reference && (
           <View style={styles.summaryRow}>
             <Text
               style={[
@@ -456,22 +420,60 @@ export default function OnrampProcessingPage() {
                 { color: isDark ? BridgeFiColors.text.secondary : BridgeFiColors.text.secondary },
               ]}
             >
-              Payment Reference
+              Amount Paid
             </Text>
             <Text
               style={[
                 styles.summaryValue,
                 { color: isDark ? BridgeFiColors.text.inverse : BridgeFiColors.text.primary },
-                { fontFamily: 'monospace', fontSize: 12 },
               ]}
             >
-              {reference.slice(0, 12)}...
+              ₦{parseFloat(ngnAmount || '0').toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           </View>
-        )}
-      </Card>
+          <View style={styles.summaryRow}>
+            <Text
+              style={[
+                styles.summaryLabel,
+                { color: isDark ? BridgeFiColors.text.secondary : BridgeFiColors.text.secondary },
+              ]}
+            >
+              You will Receive
+            </Text>
+            <Text
+              style={[
+                styles.summaryValue,
+                { color: BridgeFiColors.success },
+              ]}
+            >
+              {usdcAmount || '0.000000'} USDC
+            </Text>
+          </View>
+          {reference && (
+            <View style={styles.summaryRow}>
+              <Text
+                style={[
+                  styles.summaryLabel,
+                  { color: isDark ? BridgeFiColors.text.secondary : BridgeFiColors.text.secondary },
+                ]}
+              >
+                Payment Reference
+              </Text>
+              <Text
+                style={[
+                  styles.summaryValue,
+                  { color: isDark ? BridgeFiColors.text.inverse : BridgeFiColors.text.primary },
+                  { fontFamily: 'monospace', fontSize: 12 },
+                ]}
+              >
+                {reference.slice(0, 12)}...
+              </Text>
+            </View>
+          )}
+        </Card>
 
-      {renderStageContent()}
+        {renderStageContent()}
+      </View>
     </ScrollView>
   );
 }
@@ -487,12 +489,18 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
     paddingBottom: 40,
+    flexGrow: 1,
   },
   backButton: {
     marginBottom: 24,
+    alignSelf: 'flex-start',
+    width: '100%',
   },
   summaryCard: {
     marginBottom: 24,
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
   },
   summaryTitle: {
     fontSize: 18,
@@ -514,6 +522,7 @@ const styles = StyleSheet.create({
   stageHeader: {
     alignItems: 'center',
     marginBottom: 32,
+    width: '100%',
   },
   stageTitle: {
     fontSize: 24,
@@ -537,23 +546,31 @@ const styles = StyleSheet.create({
   },
   txInfo: {
     marginTop: 24,
+    alignItems: 'center',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 500,
   },
   txLabel: {
     fontSize: 14,
     marginBottom: 8,
+    textAlign: 'center',
   },
   txHash: {
     fontSize: 14,
     fontFamily: 'monospace',
     fontWeight: '600',
     marginBottom: 16,
+    textAlign: 'center',
   },
   confirmationsContainer: {
     marginTop: 8,
+    width: '100%',
   },
   confirmationsText: {
     fontSize: 12,
     marginBottom: 4,
+    textAlign: 'center',
   },
   confirmationsBar: {
     height: 4,
@@ -568,24 +585,48 @@ const styles = StyleSheet.create({
   completeInfo: {
     marginTop: 24,
     padding: 16,
+    alignItems: 'center',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 500,
   },
   completeLabel: {
     fontSize: 14,
     marginBottom: 8,
+    textAlign: 'center',
   },
   completeHash: {
     fontSize: 14,
     fontFamily: 'monospace',
     fontWeight: '600',
+    textAlign: 'center',
   },
   usdcAmount: {
     fontSize: 16,
     fontWeight: '600',
+    textAlign: 'center',
   },
   dashboardButton: {
     marginTop: 32,
   },
   retryButton: {
     marginTop: 32,
+  },
+  processingContent: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    minHeight: 400,
+  },
+  stageContainer: {
+    width: '100%',
+    alignItems: 'center',
+    alignSelf: 'center',
+  },
+  centeredContent: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 500,
   },
 });

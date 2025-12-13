@@ -251,7 +251,7 @@ export default function SpendProcessingPage() {
     switch (currentStage) {
       case 'blockchain':
         return (
-          <View>
+          <View style={styles.stageContainer}>
             <View style={styles.stageHeader}>
               <LoadingSpinner size="large" />
               <Text
@@ -276,7 +276,7 @@ export default function SpendProcessingPage() {
               </Text>
             </View>
             {txHash && (
-              <View style={styles.txInfo}>
+              <View style={[styles.txInfo, styles.centeredContent]}>
                 <Text
                   style={[
                     styles.txLabel,
@@ -332,7 +332,7 @@ export default function SpendProcessingPage() {
 
       case 'bank_transfer':
         return (
-          <View>
+          <View style={styles.stageContainer}>
             <View style={styles.stageHeader}>
               <LoadingSpinner size="large" />
               <Text
@@ -391,7 +391,7 @@ export default function SpendProcessingPage() {
 
       case 'complete':
         return (
-          <View>
+          <View style={styles.stageContainer}>
             <View style={styles.stageHeader}>
               <Text style={[styles.successIcon, { color: BridgeFiColors.success }]}>✓</Text>
               <Text
@@ -477,7 +477,7 @@ export default function SpendProcessingPage() {
 
       case 'failed':
         return (
-          <View>
+          <View style={styles.stageContainer}>
             <View style={styles.stageHeader}>
               <Text style={[styles.errorIcon, { color: BridgeFiColors.error }]}>✕</Text>
               <Text
@@ -521,7 +521,9 @@ export default function SpendProcessingPage() {
       contentContainerStyle={styles.contentContainer}
     >
       <BackButton style={styles.backButton} />
-      {renderStageContent()}
+      <View style={styles.processingContent}>
+        {renderStageContent()}
+      </View>
     </ScrollView>
   );
 }
@@ -537,13 +539,17 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
     paddingBottom: 40,
+    flexGrow: 1,
   },
   backButton: {
     marginBottom: 24,
+    alignSelf: 'flex-start',
+    width: '100%',
   },
   stageHeader: {
     alignItems: 'center',
     marginBottom: 32,
+    width: '100%',
   },
   stageTitle: {
     fontSize: 24,
@@ -567,23 +573,28 @@ const styles = StyleSheet.create({
   },
   txInfo: {
     marginTop: 24,
+    alignItems: 'center',
   },
   txLabel: {
     fontSize: 14,
     marginBottom: 8,
+    textAlign: 'center',
   },
   txHash: {
     fontSize: 14,
     fontFamily: 'monospace',
     fontWeight: '600',
     marginBottom: 16,
+    textAlign: 'center',
   },
   confirmationsContainer: {
     marginTop: 8,
+    width: '100%',
   },
   confirmationsText: {
     fontSize: 12,
     marginBottom: 4,
+    textAlign: 'center',
   },
   confirmationsBar: {
     height: 4,
@@ -598,45 +609,76 @@ const styles = StyleSheet.create({
   transferInfo: {
     marginTop: 24,
     padding: 16,
+    alignItems: 'center',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 500,
   },
   transferLabel: {
     fontSize: 14,
     marginBottom: 8,
+    textAlign: 'center',
   },
   transferReference: {
     fontSize: 14,
     fontFamily: 'monospace',
     fontWeight: '600',
     marginBottom: 8,
+    textAlign: 'center',
   },
   ngnAmount: {
     fontSize: 16,
     fontWeight: '600',
     marginTop: 8,
+    textAlign: 'center',
   },
   completeInfo: {
     marginTop: 24,
     padding: 16,
+    alignItems: 'center',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 500,
   },
   completeLabel: {
     fontSize: 14,
     marginBottom: 8,
+    textAlign: 'center',
   },
   completeHash: {
     fontSize: 14,
     fontFamily: 'monospace',
     fontWeight: '600',
+    textAlign: 'center',
   },
   completeReference: {
     fontSize: 14,
     fontFamily: 'monospace',
     fontWeight: '600',
     marginTop: 4,
+    textAlign: 'center',
   },
   dashboardButton: {
     marginTop: 32,
   },
   retryButton: {
     marginTop: 32,
+  },
+  processingContent: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    minHeight: 400,
+  },
+  stageContainer: {
+    width: '100%',
+    alignItems: 'center',
+    alignSelf: 'center',
+  },
+  centeredContent: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 500,
   },
 });
