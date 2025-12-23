@@ -1,6 +1,6 @@
 # BridgeFi - Comprehensive Developer Guide
 
-BridgeFi is a cross-platform mobile application built with Expo that enables seamless conversion between Nigerian Naira (NGN) and USDC on the Mantle blockchain network. The platform provides on-ramp (NGN → USDC) and off-ramp (USDC → NGN) services with Paystack integration.
+BridgeFi is a cross-platform mobile application built with Expo that enables seamless conversion between Nigerian Naira (NGN) and USDC on the Mantle blockchain network. The platform provides on-ramp (NGN → USDC) and off-ramp (USDC → NGN) services with Paystack integration with more fiat support coming soon across multiple countries.
 
 ## Table of Contents
 
