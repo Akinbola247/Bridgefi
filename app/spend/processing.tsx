@@ -11,7 +11,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { BridgeFiColors } from '@/constants/colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/hooks/useAuth';
-import { executeOfframp, getTreasuryAddress } from '@/utils/onrampOfframp';
+import { executeOfframp, getTreasuryAddress, refundUSDC } from '@/utils/onrampOfframp';
 import { sendMNT, sendUSDC, waitForTransaction } from '@/utils/tokenTransfer';
 import Constants from 'expo-constants';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -215,11 +215,63 @@ export default function SpendProcessingPage() {
       }
     } catch (error: any) {
       console.error('Bank transfer error:', error);
-      setError(error.message || 'Failed to execute bank transfer. Please contact support.');
+      
+      // Check if refund was automatically processed
+      if (error.refund && error.refund.success) {
+        console.log(`✅ USDC automatically refunded: ${error.refund.txHash}`);
+        setError(
+          `Bank transfer failed, but your USDC has been refunded. Transaction: ${error.refund.txHash.slice(0, 10)}...${error.refund.txHash.slice(-8)}`
+        );
+      } else if (error.refund && !error.refund.success) {
+        // Refund failed, try manual refund
+        console.log(`⚠️ Automatic refund failed, attempting manual refund...`);
+        try {
+          const refundResult = await refundUSDC(
+            address || '',
+            parseFloat(usdcAmount || '0'),
+            txHash,
+            `Bank transfer failed: ${error.message}`
+          );
+          console.log(`✅ Manual refund successful: ${refundResult.txHash}`);
+          setError(
+            `Bank transfer failed, but your USDC has been refunded. Transaction: ${refundResult.txHash.slice(0, 10)}...${refundResult.txHash.slice(-8)}`
+          );
+        } catch (refundError: any) {
+          console.error('❌ Manual refund also failed:', refundError);
+          setError(
+            `Bank transfer failed. Refund attempt failed: ${refundError.message}. Please contact support with transaction hash: ${txHash}`
+          );
+        }
+      } else {
+        // No refund attempted, try to refund now
+        if (address && usdcAmount) {
+          console.log(`🔄 Attempting to refund USDC...`);
+          try {
+            const refundResult = await refundUSDC(
+              address,
+              parseFloat(usdcAmount),
+              txHash,
+              `Bank transfer failed: ${error.message}`
+            );
+            console.log(`✅ Refund successful: ${refundResult.txHash}`);
+            setError(
+              `Bank transfer failed, but your USDC has been refunded. Transaction: ${refundResult.txHash.slice(0, 10)}...${refundResult.txHash.slice(-8)}`
+            );
+          } catch (refundError: any) {
+            console.error('❌ Refund failed:', refundError);
+            setError(
+              `Bank transfer failed. Refund attempt failed: ${refundError.message}. Please contact support with transaction hash: ${txHash}`
+            );
+          }
+        } else {
+          setError(error.message || 'Failed to execute bank transfer. Please contact support.');
+        }
+      }
+      
       setStatus('error');
       setCurrentStage('failed');
     }
-  }, [quoteId, txHash, usdcAmount, bankAccount, bankCode, accountName]);
+  }, [quoteId, txHash, usdcAmount, bankAccount, bankCode, accountName, address]);
 
   // Execute transaction when ready (for bank transfers, wait for treasury address)
   useEffect(() => {
