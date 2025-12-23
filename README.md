@@ -128,7 +128,7 @@ For mobile development, you'll also need:
 
 1. **Clone the repository** (if not already done):
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Akinbola247/Bridgefi.git
    cd Bridgefi
    ```
 
@@ -938,19 +938,6 @@ EXPO_PUBLIC_TREASURY_ADDRESS=0x...
    - Check variable names are correct (case-sensitive)
    - Ensure no extra spaces or quotes
 
-
-### Production Checklist
-
-- [ ] All environment variables configured
-- [ ] HTTPS enabled for backend
-- [ ] Rate limiting implemented
-- [ ] Webhook signature verification enabled
-- [ ] Treasury wallet secured
-- [ ] Private keys stored securely
-- [ ] Error logging configured
-- [ ] Monitoring set up
-- [ ] Backup strategy in place
-- [ ] Security audit completed
 
 
 
