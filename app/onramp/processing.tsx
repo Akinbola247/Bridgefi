@@ -403,16 +403,53 @@ export default function OnrampProcessingPage() {
       )}
       
       <View style={styles.processingContent}>
-        {/* Transaction Summary */}
-        <Card style={styles.summaryCard}>
+      {/* Transaction Summary */}
+      <Card style={styles.summaryCard}>
+        <Text
+          style={[
+            styles.summaryTitle,
+            { color: isDark ? BridgeFiColors.text.inverse : BridgeFiColors.text.primary },
+          ]}
+        >
+          Transaction Summary
+        </Text>
+        <View style={styles.summaryRow}>
           <Text
             style={[
-              styles.summaryTitle,
+              styles.summaryLabel,
+              { color: isDark ? BridgeFiColors.text.secondary : BridgeFiColors.text.secondary },
+            ]}
+          >
+            Amount Paid
+          </Text>
+          <Text
+            style={[
+              styles.summaryValue,
               { color: isDark ? BridgeFiColors.text.inverse : BridgeFiColors.text.primary },
             ]}
           >
-            Transaction Summary
+            ₦{parseFloat(ngnAmount || '0').toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text
+            style={[
+              styles.summaryLabel,
+              { color: isDark ? BridgeFiColors.text.secondary : BridgeFiColors.text.secondary },
+            ]}
+          >
+            You will Receive
+          </Text>
+          <Text
+            style={[
+              styles.summaryValue,
+              { color: BridgeFiColors.success },
+            ]}
+          >
+            {usdcAmount || '0.000000'} USDC
+          </Text>
+        </View>
+        {reference && (
           <View style={styles.summaryRow}>
             <Text
               style={[
@@ -420,59 +457,22 @@ export default function OnrampProcessingPage() {
                 { color: isDark ? BridgeFiColors.text.secondary : BridgeFiColors.text.secondary },
               ]}
             >
-              Amount Paid
+              Payment Reference
             </Text>
             <Text
               style={[
                 styles.summaryValue,
                 { color: isDark ? BridgeFiColors.text.inverse : BridgeFiColors.text.primary },
+                { fontFamily: 'monospace', fontSize: 12 },
               ]}
             >
-              ₦{parseFloat(ngnAmount || '0').toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {reference.slice(0, 12)}...
             </Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text
-              style={[
-                styles.summaryLabel,
-                { color: isDark ? BridgeFiColors.text.secondary : BridgeFiColors.text.secondary },
-              ]}
-            >
-              You will Receive
-            </Text>
-            <Text
-              style={[
-                styles.summaryValue,
-                { color: BridgeFiColors.success },
-              ]}
-            >
-              {usdcAmount || '0.000000'} USDC
-            </Text>
-          </View>
-          {reference && (
-            <View style={styles.summaryRow}>
-              <Text
-                style={[
-                  styles.summaryLabel,
-                  { color: isDark ? BridgeFiColors.text.secondary : BridgeFiColors.text.secondary },
-                ]}
-              >
-                Payment Reference
-              </Text>
-              <Text
-                style={[
-                  styles.summaryValue,
-                  { color: isDark ? BridgeFiColors.text.inverse : BridgeFiColors.text.primary },
-                  { fontFamily: 'monospace', fontSize: 12 },
-                ]}
-              >
-                {reference.slice(0, 12)}...
-              </Text>
-            </View>
-          )}
-        </Card>
+        )}
+      </Card>
 
-        {renderStageContent()}
+      {renderStageContent()}
       </View>
     </ScrollView>
   );
