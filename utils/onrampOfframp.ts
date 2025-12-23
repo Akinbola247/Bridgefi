@@ -208,12 +208,19 @@ export async function executeOfframp(
     bankAccount: string;
     bankCode: string;
     accountName: string;
+    userAddress?: string;
   }
 ): Promise<{
   success: boolean;
   transferReference?: string;
   ngnAmount?: number;
   status?: string;
+  refund?: {
+    success: boolean;
+    txHash?: string;
+    usdcAmount?: number;
+    error?: string;
+  };
 }> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/offramp/execute`, {
@@ -228,16 +235,126 @@ export async function executeOfframp(
       }),
     });
 
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      // Check if refund was attempted
+      if (responseData.refund) {
+        throw {
+          message: responseData.error || 'Failed to execute offramp',
+          refund: responseData.refund,
+        };
+      }
+      throw new Error(responseData.error || 'Failed to execute offramp');
+    }
+
+    return responseData.data;
+  } catch (error: any) {
+    console.error('Error executing offramp:', error);
+    throw error;
+  }
+}
+
+/**
+ * Refund USDC to user
+ */
+export async function refundUSDC(
+  userAddress: string,
+  usdcAmount: number,
+  txHash?: string,
+  reason?: string
+): Promise<{
+  success: boolean;
+  txHash: string;
+  usdcAmount: number;
+  reason?: string;
+}> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/offramp/refund`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userAddress,
+        usdcAmount,
+        txHash,
+        reason,
+      }),
+    });
+
+    // Check content type to ensure we're getting JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Non-JSON response from refund endpoint:', text.substring(0, 200));
+      throw new Error(`Server returned non-JSON response. Status: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to process refund');
+    }
+
+    return data.data;
+  } catch (error: any) {
+    console.error('Error processing refund:', error);
+    // If it's already an Error with a message, re-throw it
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error(error.message || 'Failed to process refund');
+  }
+}
+
+/**
+ * Get user transactions
+ */
+export async function getUserTransactions(
+  userAddress: string,
+  options?: {
+    type?: 'onramp' | 'offramp';
+    status?: 'pending' | 'processing' | 'completed' | 'failed';
+    limit?: number;
+    offset?: number;
+  }
+): Promise<{
+  transactions: Transaction[];
+  total: number;
+  limit: number;
+  offset: number;
+}> {
+  try {
+    const params = new URLSearchParams({
+      userAddress,
+    });
+
+    if (options?.type) {
+      params.append('type', options.type);
+    }
+    if (options?.status) {
+      params.append('status', options.status);
+    }
+    if (options?.limit) {
+      params.append('limit', options.limit.toString());
+    }
+    if (options?.offset) {
+      params.append('offset', options.offset.toString());
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/transactions?${params.toString()}`);
+
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error || 'Failed to execute offramp');
+      throw new Error(error.error || 'Failed to fetch transactions');
     }
 
     const data = await response.json();
     return data.data;
   } catch (error: any) {
-    console.error('Error executing offramp:', error);
-    throw new Error(error.message || 'Failed to execute offramp');
+    console.error('Error fetching transactions:', error);
+    throw new Error(error.message || 'Failed to fetch transactions');
   }
 }
 
