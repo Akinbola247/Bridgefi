@@ -123,7 +123,7 @@ async function executeOfframp(quoteId, txHash, quoteData = null) {
       console.error(`❌ Quote ${quoteId} not found and insufficient quote data provided`);
       console.error(`   Quote data received:`, quoteData);
       console.error(`   Available quotes:`, Array.from(quotes.keys()));
-      throw new Error(`Quote not found. If the server was restarted, the quote may have been lost. Please try initiating a new transaction.`);
+      throw new Error(`Transaction ${quoteId} not found. If the server was restarted, the quote may have been lost. Please try initiating a new transaction.`);
     }
   } else {
     console.log(`✅ Quote ${quoteId} found in memory`);
@@ -141,24 +141,53 @@ async function executeOfframp(quoteId, txHash, quoteData = null) {
   quote.txHash = txHash;
   quote.status = 'processing';
   
-  // Record transaction
+  // Record transaction (use quoteId as transaction ID to ensure we can update it later)
   if (userAddress) {
-    transactionHistory.recordTransaction({
-      type: 'offramp',
-      userAddress: userAddress,
-      amount: quote.usdcAmount,
-      currency: 'USDC',
-      status: 'processing',
-      txHash: txHash,
-      reference: quoteId,
-      metadata: {
-        ngnAmount: quote.ngnAmount,
-        bankAccount: quote.bankAccount,
-        bankCode: quote.bankCode,
-        accountName: quote.accountName,
-        exchangeRate: quote.rate,
-      },
-    });
+    // Check if transaction already exists
+    const existingTx = transactionHistory.getTransactionById(quoteId);
+    if (existingTx) {
+      // Update existing transaction
+      try {
+        transactionHistory.updateTransactionStatus(quoteId, 'processing', {
+          txHash: txHash,
+          metadata: {
+            ngnAmount: quote.ngnAmount,
+            bankAccount: quote.bankAccount,
+            bankCode: quote.bankCode,
+            accountName: quote.accountName,
+            exchangeRate: quote.rate,
+          },
+        });
+        console.log(`✅ Updated existing transaction: ${quoteId}`);
+      } catch (updateError) {
+        console.warn('Could not update transaction:', updateError);
+      }
+    } else {
+      // Record new transaction
+      try {
+        transactionHistory.recordTransaction({
+          id: quoteId, // Use quoteId as transaction ID
+          type: 'offramp',
+          userAddress: userAddress,
+          amount: quote.usdcAmount,
+          currency: 'USDC',
+          status: 'processing',
+          txHash: txHash,
+          reference: quoteId,
+          metadata: {
+            ngnAmount: quote.ngnAmount,
+            bankAccount: quote.bankAccount,
+            bankCode: quote.bankCode,
+            accountName: quote.accountName,
+            exchangeRate: quote.rate,
+          },
+        });
+        console.log(`✅ Recorded new transaction: ${quoteId}`);
+      } catch (txError) {
+        console.warn('Could not record transaction:', txError);
+        // Continue anyway - transaction recording is not critical for the flow
+      }
+    }
   }
 
   try {
@@ -199,18 +228,53 @@ async function executeOfframp(quoteId, txHash, quoteData = null) {
 
     // Update transaction status
     if (userAddress) {
-      transactionHistory.updateTransactionStatus(
-        quoteId,
-        'completed',
-        {
-          txHash: txHash,
-          reference: transferRef,
-          metadata: {
-            transferReference: transferRef,
-            ngnAmount: quote.ngnAmount,
-          },
+      const existingTx = transactionHistory.getTransactionById(quoteId);
+      if (existingTx) {
+        try {
+          transactionHistory.updateTransactionStatus(
+            quoteId,
+            'completed',
+            {
+              txHash: txHash,
+              reference: transferRef,
+              metadata: {
+                transferReference: transferRef,
+                ngnAmount: quote.ngnAmount,
+              },
+            }
+          );
+          console.log(`✅ Updated transaction status to completed: ${quoteId}`);
+        } catch (txError) {
+          console.warn('Could not update transaction status:', txError);
+          // Don't fail the whole operation if transaction update fails
         }
-      );
+      } else {
+        // Transaction doesn't exist, record it as completed
+        try {
+          transactionHistory.recordTransaction({
+            id: quoteId,
+            type: 'offramp',
+            userAddress: userAddress,
+            amount: quote.usdcAmount,
+            currency: 'USDC',
+            status: 'completed',
+            txHash: txHash,
+            reference: quoteId,
+            metadata: {
+              ngnAmount: quote.ngnAmount,
+              bankAccount: quote.bankAccount,
+              bankCode: quote.bankCode,
+              accountName: quote.accountName,
+              exchangeRate: quote.rate,
+              transferReference: transferRef,
+            },
+          });
+          console.log(`✅ Recorded transaction as completed: ${quoteId}`);
+        } catch (recordError) {
+          console.warn('Could not record transaction:', recordError);
+          // Don't fail the whole operation if transaction recording fails
+        }
+      }
     }
 
     // Store mock transfer for verification in mock mode
@@ -245,22 +309,106 @@ async function executeOfframp(quoteId, txHash, quoteData = null) {
     
     // Update transaction status
     if (userAddress) {
-      try {
-        transactionHistory.updateTransactionStatus(
-          quoteId,
-          'failed',
-          {
+      const existingTx = transactionHistory.getTransactionById(quoteId);
+      if (existingTx) {
+        try {
+          transactionHistory.updateTransactionStatus(
+            quoteId,
+            'failed',
+            {
+              metadata: {
+                error: error.message,
+              },
+            }
+          );
+        } catch (txError) {
+          console.warn('Could not update transaction status:', txError);
+        }
+      } else {
+        // Record as failed if it doesn't exist
+        try {
+          transactionHistory.recordTransaction({
+            id: quoteId,
+            type: 'offramp',
+            userAddress: userAddress,
+            amount: quote.usdcAmount,
+            currency: 'USDC',
+            status: 'failed',
+            txHash: txHash,
+            reference: quoteId,
             metadata: {
+              ngnAmount: quote.ngnAmount,
+              bankAccount: quote.bankAccount,
+              bankCode: quote.bankCode,
+              accountName: quote.accountName,
+              exchangeRate: quote.rate,
               error: error.message,
             },
-          }
-        );
-      } catch (txError) {
-        console.error('Failed to update transaction status:', txError);
+          });
+        } catch (recordError) {
+          console.warn('Could not record failed transaction:', recordError);
+        }
       }
     }
     
+    // Re-throw error so caller can handle refund
     throw error;
+  }
+}
+
+/**
+ * Refund USDC to user when bank transfer fails
+ */
+async function refundUSDC(userAddress, usdcAmount, txHash, reason) {
+  if (!userAddress || !usdcAmount) {
+    throw new Error('Missing required parameters for refund');
+  }
+
+  const { ethers } = require('ethers');
+  const MANTLE_RPC_URL = process.env.MANTLE_RPC_URL || 'https://rpc.sepolia.mantle.xyz';
+  const USDC_TOKEN_ADDRESS = process.env.USDC_TOKEN_ADDRESS || '0x0D2aFc5b522aFFdd2E55a541acEc556611A0196F';
+  const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY;
+
+  if (!TREASURY_PRIVATE_KEY) {
+    throw new Error('Treasury private key not configured');
+  }
+
+  try {
+    const provider = new ethers.providers.JsonRpcProvider(MANTLE_RPC_URL);
+    const wallet = new ethers.Wallet(TREASURY_PRIVATE_KEY, provider);
+
+    // Create USDC contract instance
+    const ERC20_ABI = [
+      'function transfer(address to, uint256 amount) external returns (bool)',
+      'function balanceOf(address account) external view returns (uint256)',
+    ];
+    const usdcContract = new ethers.Contract(USDC_TOKEN_ADDRESS, ERC20_ABI, wallet);
+
+    // Convert USDC amount to wei (18 decimals)
+    const amountWei = ethers.utils.parseEther(usdcAmount.toString());
+
+    // Check treasury balance
+    const balance = await usdcContract.balanceOf(wallet.address);
+    if (balance.lt(amountWei)) {
+      throw new Error('Insufficient treasury balance for refund');
+    }
+
+    // Send USDC back to user
+    const refundTx = await usdcContract.transfer(userAddress, amountWei);
+    console.log(`💰 Refunding ${usdcAmount} USDC to ${userAddress}, TX: ${refundTx.hash}, Reason: ${reason}`);
+
+    // Wait for confirmation
+    await refundTx.wait(1);
+
+    return {
+      success: true,
+      txHash: refundTx.hash,
+      usdcAmount: usdcAmount,
+      reason: reason,
+    };
+  } catch (error) {
+    console.error('Error refunding USDC:', error);
+    throw new Error(`Failed to refund USDC: ${error.message}`);
   }
 }
 
@@ -305,5 +453,6 @@ module.exports = {
   getQuoteStatus,
   getMockTransfer,
   getAllMockTransfers,
+  refundUSDC,
 };
 

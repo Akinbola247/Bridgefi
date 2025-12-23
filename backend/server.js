@@ -231,9 +231,97 @@ app.post('/api/offramp/execute', async (req, res) => {
     });
   } catch (error) {
     console.error('Error executing offramp:', error);
+    
+    // If bank transfer fails and we have user address and USDC amount, attempt refund
+    const { quoteId, txHash, quoteData } = req.body;
+    if (quoteData && quoteData.userAddress && quoteData.usdcAmount) {
+      try {
+        console.log(`🔄 Attempting to refund ${quoteData.usdcAmount} USDC to ${quoteData.userAddress}...`);
+        const refundResult = await offrampService.refundUSDC(
+          quoteData.userAddress,
+          quoteData.usdcAmount,
+          txHash,
+          `Bank transfer failed: ${error.message}`
+        );
+        console.log(`✅ Refund successful: ${refundResult.txHash}`);
+        
+        // Return error with refund info
+        return res.status(500).json({
+          success: false,
+          error: error.message || 'Failed to execute offramp',
+          refund: {
+            success: true,
+            txHash: refundResult.txHash,
+            usdcAmount: refundResult.usdcAmount,
+          },
+        });
+      } catch (refundError) {
+        console.error('❌ Refund failed:', refundError);
+        // Return original error with refund failure info
+        return res.status(500).json({
+          success: false,
+          error: error.message || 'Failed to execute offramp',
+          refund: {
+            success: false,
+            error: refundError.message,
+          },
+        });
+      }
+    }
+    
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to execute offramp',
+    });
+  }
+});
+
+// Refund endpoint (for manual refunds if needed)
+app.post('/api/offramp/refund', async (req, res) => {
+  try {
+    const { userAddress, usdcAmount, txHash, reason } = req.body;
+
+    if (!userAddress || !usdcAmount) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: userAddress, usdcAmount',
+      });
+    }
+
+    // Validate userAddress format
+    if (!userAddress.startsWith('0x') || userAddress.length !== 42) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user address format',
+      });
+    }
+
+    // Validate usdcAmount is a number
+    const amount = parseFloat(usdcAmount);
+    if (isNaN(amount) || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid USDC amount',
+      });
+    }
+
+    const result = await offrampService.refundUSDC(
+      userAddress,
+      amount,
+      txHash || null,
+      reason || 'Manual refund'
+    );
+    
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error processing refund:', error);
+    // Ensure we always return JSON, not HTML
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to process refund',
     });
   }
 });
